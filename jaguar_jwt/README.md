@@ -38,12 +38,24 @@ To process a JWT:
 2. Validate the claim set.
 3. Extract claims from the claim set.
 
+Step 2 is not optional: `verifyJwtHS256Signature` only checks the signature and
+the header. It does not check the issuer, the audience, or whether the token has
+expired — `validate` does that.
+
+Both `issuer` and `audience` are only checked when you pass them, and a token
+that lacks the corresponding claim is rejected. The Expiration Time Claim is
+optional in a JWT, so a token without one never expires: pass
+`requireExpiry: true` to reject those.
+
 ```dart
   try {
     final JwtClaim decClaimSet = verifyJwtHS256Signature(token, key);
     // print(decClaimSet);
 
-    decClaimSet.validate(issuer: 'teja', audience: 'audience1.example.com');
+    decClaimSet.validate(
+        issuer: 'teja',
+        audience: 'audience1.example.com',
+        requireExpiry: true);
 
     if (claimSet.jwtId != null) {
        print(claimSet.jwtId);

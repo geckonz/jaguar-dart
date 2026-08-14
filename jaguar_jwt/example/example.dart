@@ -39,7 +39,8 @@ void receiverProcessesJwt(String token) {
 
     // Validate the claim set
 
-    decClaimSet.validate(issuer: 'teja', audience: 'client2.example.com');
+    decClaimSet.validate(
+        issuer: 'teja', audience: 'client2.example.com', requireExpiry: true);
 
     // Use values from claim set
 

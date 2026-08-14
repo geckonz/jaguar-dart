@@ -70,26 +70,52 @@ class JwtClaim {
   /// This default behaviour can be disabled by setting [defaultIatExp] to
   /// false. When set to false, the _Issued At Claim_ and and _Expiration Time
   /// Claim_ are only set if they are explicitly provided.
-  JwtClaim(
-      {this.issuer,
-      this.subject,
-      this.audience,
+  factory JwtClaim(
+      {String? issuer,
+      String? subject,
+      List<String>? audience,
       DateTime? expiry,
       DateTime? notBefore,
       DateTime? issuedAt,
-      this.jwtId,
-      Map<String, dynamic?>? otherClaims,
-      Map<String, dynamic?>? payload,
+      String? jwtId,
+      Map<String, dynamic>? otherClaims,
+      Map<String, dynamic>? payload,
       bool defaultIatExp = true,
-      Duration? maxAge})
-      : issuedAt = issuedAt?.toUtc() ??
-            ((defaultIatExp) ? DateTime.now().toUtc() : null),
-        notBefore = notBefore?.toUtc(),
-        expiry = expiry?.toUtc() ??
-            ((defaultIatExp)
-                ? ((issuedAt?.toUtc() ?? DateTime.now().toUtc())
-                    .add(maxAge ?? defaultMaxAge))
-                : null) {
+      Duration? maxAge}) {
+    // Resolve the Issued At and Expiration Time Claims from a single reading of
+    // the clock, so the interval between them is exactly maxAge.
+    final now = DateTime.now().toUtc();
+
+    final iat = issuedAt?.toUtc() ?? (defaultIatExp ? now : null);
+    final exp = expiry?.toUtc() ??
+        (defaultIatExp ? (iat ?? now).add(maxAge ?? defaultMaxAge) : null);
+
+    return JwtClaim._(
+        issuer: issuer,
+        subject: subject,
+        audience: audience,
+        expiry: exp,
+        notBefore: notBefore?.toUtc(),
+        issuedAt: iat,
+        jwtId: jwtId,
+        otherClaims: otherClaims,
+        payload: payload);
+  }
+
+  /// Constructs a claim set from already-resolved values.
+  ///
+  /// All [DateTime] values must already be in UTC, and any defaulting of the
+  /// Issued At and Expiration Time Claims must already have been applied.
+  JwtClaim._(
+      {this.issuer,
+      this.subject,
+      this.audience,
+      this.expiry,
+      this.notBefore,
+      this.issuedAt,
+      this.jwtId,
+      Map<String, dynamic>? otherClaims,
+      Map<String, dynamic>? payload}) {
     // Check and record any non-registered claims
     if (otherClaims != null) {
       // Check otherClaims does not contain any registered claims.
@@ -354,6 +380,14 @@ class JwtClaim {
   /// Checks the for the [issuer] and [audience] and validates the Expiration
   /// Time Claim and Not Before claim, if they are present.
   ///
+  /// If an [issuer] is provided, the token's _Issuer Claim_ must be present and
+  /// exactly match it, otherwise [JwtException.incorrectIssuer] is thrown.
+  ///
+  /// If an [audience] is provided, the token's _Audience Claim_ must be present
+  /// and contain it, otherwise [JwtException.audienceNotAllowed] is thrown.
+  /// Note: a token without an _Audience Claim_ is rejected, since it was not
+  /// issued for the caller's audience.
+  ///
   /// The time claims in the token (i.e. Expiry, Not Before and Issued At) are
   /// checked with the current time.
   /// A value for [currentTime] can be provided (this is useful for validating
@@ -368,11 +402,17 @@ class JwtClaim {
   /// the clock of the system that created the token and the clock of the system
   /// doing the validation. By default, there is no allowance for clock skew
   /// (i.e. it defaults to a duration of zero).
+  ///
+  /// The _Expiration Time Claim_ is optional in a JWT, so a token without one
+  /// never expires and is accepted no matter how old it is. Set [requireExpiry]
+  /// to true to reject such tokens with [JwtException.expiryRequired].
+  /// Applications that treat a JWT as a time-limited credential should do this.
   void validate(
       {String? issuer,
       String? audience,
       Duration? allowedClockSkew,
-      DateTime? currentTime}) {
+      DateTime? currentTime,
+      bool requireExpiry = false}) {
     // Ensure clock skew has a value and is never negative
     final absClockSkew = allowedClockSkew?.abs() ?? const Duration();
 
@@ -386,10 +426,19 @@ class JwtClaim {
     // No checks for subject: the application is supposed to do that
 
     // Check Audience Claim
+    //
+    // A token that has no Audience Claim is rejected: if the caller asked for
+    // an audience, it requires the token to have been issued for it, and a
+    // token with no audience was not issued for anyone in particular.
     if (audience != null) {
-      if (this.audience != null && !this.audience!.contains(audience)) {
+      if (this.audience == null || !this.audience!.contains(audience)) {
         throw JwtException.audienceNotAllowed;
       }
+    }
+
+    // Check an Expiration Time Claim is present, if the caller requires one
+    if (requireExpiry && expiry == null) {
+      throw JwtException.expiryRequired;
     }
 
     // Validate time claims (if present) are consistent

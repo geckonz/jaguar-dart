@@ -79,11 +79,19 @@ bool defaultJWTHeaderCheck(Map<String, dynamic?> h) {
 /// The [headerCheck] is an optional function to check the header.
 /// It defaults to [defaultJWTHeaderCheck].
 ///
-/// Normally, if either the _Issued At Claim_ and/or _Expiration Time Claim_
-/// are not present, default values are assigned to them.
-/// This behaviour can be disabled by setting [defaultIatExp] to false.
-/// See the constructor [JwtClaim] for details about what default values are
-/// used and how [maxAge] is used.
+/// The returned claim set contains exactly the claims that were in the token.
+/// In particular, if the token has no _Issued At Claim_ and/or no _Expiration
+/// Time Claim_, the returned claim set will not have them either.
+///
+/// Setting [defaultIatExp] to true restores the legacy behaviour of assigning
+/// default values to those two claims when they are absent from the token
+/// (see the constructor [JwtClaim] for what defaults are used and how [maxAge]
+/// is used). **This is dangerous and is not recommended.** A fabricated
+/// _Expiration Time Claim_ is always in the future, so validating the claim set
+/// can never detect that the token itself has no expiry: such a token is
+/// effectively immortal, while appearing to expire. To reject tokens that do
+/// not expire, leave [defaultIatExp] false and validate with
+/// `requireExpiry: true`.
 ///
 /// Throws a [JwtException] if the signature does not verify or the
 /// JWT is invalid.
@@ -92,7 +100,7 @@ bool defaultJWTHeaderCheck(Map<String, dynamic?> h) {
 ///     print(decClaimSet);
 JwtClaim verifyJwtHS256Signature(String token, String hmacKey,
     {JOSEHeaderCheck? headerCheck = defaultJWTHeaderCheck,
-    bool defaultIatExp = true,
+    bool defaultIatExp = false,
     Duration maxAge = JwtClaim.defaultMaxAge}) {
   try {
     final hmac = Hmac(sha256, hmacKey.codeUnits);

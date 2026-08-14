@@ -233,6 +233,60 @@ void main() {
 
     //================================================================
 
+    group('Time claims are not fabricated', () {
+      // Verification must report exactly the claims that were in the token.
+      // A fabricated Expiration Time Claim is always in the future, which
+      // would make a token that never expires look like one that does.
+
+      const secret = 's3cr3t';
+
+      // Token whose payload is exactly '{"iss":"joe"}': no 'iat', no 'exp'.
+      final tokenWithoutTimeClaims =
+          issueJwtHS256(JwtClaim(issuer: 'joe', defaultIatExp: false), secret);
+
+      test('Absent iat and exp stay absent', () {
+        final claimSet =
+            verifyJwtHS256Signature(tokenWithoutTimeClaims, secret);
+
+        expect(claimSet.issuer, equals('joe'));
+        expect(claimSet.expiry, isNull);
+        expect(claimSet.issuedAt, isNull);
+        expect(claimSet.containsKey('exp'), isFalse);
+        expect(claimSet.containsKey('iat'), isFalse);
+      });
+
+      test('Re-encoding a decoded token does not add claims', () {
+        final claimSet =
+            verifyJwtHS256Signature(tokenWithoutTimeClaims, secret);
+
+        expect(issueJwtHS256(claimSet, secret), equals(tokenWithoutTimeClaims));
+      });
+
+      test('Present iat and exp are preserved', () {
+        final issuedAt = DateTime.utc(2019, 1, 15, 2, 25, 19);
+        final expiry = DateTime.utc(2019, 1, 15, 2, 27, 19);
+
+        final token = issueJwtHS256(
+            JwtClaim(issuer: 'joe', issuedAt: issuedAt, expiry: expiry),
+            secret);
+
+        final claimSet = verifyJwtHS256Signature(token, secret);
+
+        expect(claimSet.issuedAt, equals(issuedAt));
+        expect(claimSet.expiry, equals(expiry));
+      });
+
+      test('Legacy defaultIatExp: true still fabricates them', () {
+        final claimSet = verifyJwtHS256Signature(tokenWithoutTimeClaims, secret,
+            defaultIatExp: true);
+
+        expect(claimSet.expiry, isNotNull);
+        expect(claimSet.issuedAt, isNotNull);
+      });
+    });
+
+    //================================================================
+
     group('Signature', () {
       final claimSet = JwtClaim(
           subject: 'kleak',
