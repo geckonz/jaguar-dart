@@ -1,5 +1,29 @@
 # Changelog
 
+## Unreleased
+
+**Breaking changes** — all three tighten validation, so tokens that were
+previously accepted may now be rejected:
+
++ `JwtClaim.validate(audience: ...)` now rejects a token that has no Audience
+  Claim, instead of skipping the check. Previously a token issued for no
+  audience was accepted by every service that validated an audience. (#1)
++ `verifyJwtHS256Signature` no longer assigns default Issued At and Expiration
+  Time Claims: `defaultIatExp` now defaults to false, so the returned claim set
+  contains exactly the claims that were in the token. The old behaviour
+  fabricated an expiry that was always in the future, which made a token
+  without an Expiration Time Claim appear to expire while in fact never
+  expiring. Pass `defaultIatExp: true` to restore it (not recommended). (#2)
++ `JwtClaim.validate` gained a `requireExpiry` parameter (default false).
+  Set it to true to reject tokens that have no Expiration Time Claim with the
+  new `JwtException.expiryRequired`.
+
+Other changes:
+
++ The defaulted Issued At and Expiration Time Claims are now derived from a
+  single reading of the clock, so the interval between them is exactly
+  `maxAge`.
+
 ## 3.0.0
 
 + Null safety  

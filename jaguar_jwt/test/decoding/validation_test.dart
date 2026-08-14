@@ -306,6 +306,17 @@ void main() {
           expect(claimSet.issuedAt!.difference(whenConstructorWasInvoked),
               lessThan(const Duration(seconds: 1)));
         });
+
+        test('Defaulted Expiry is exactly maxAge after the defaulted IssuedAt',
+            () {
+          // Both defaults must come from a single reading of the clock,
+          // otherwise the interval drifts by however long construction took.
+          const maxAge = Duration(minutes: 5);
+          final defaulted = JwtClaim(maxAge: maxAge);
+
+          expect(defaulted.expiry!.difference(defaulted.issuedAt!),
+              equals(maxAge));
+        });
       });
 
       //----------------
@@ -396,6 +407,55 @@ void main() {
           readyBeforeIssuedClaimSet.validate(
               currentTime: expiry.subtract(smallDelay)); // expect no exception
         });
+      });
+    });
+
+    //================================================================
+
+    group('Require expiry', () {
+      const secret = 's3cr3t';
+
+      final neverExpires =
+          JwtClaim(issuer: 'issuer.example.com', defaultIatExp: false);
+      final expires = JwtClaim(issuer: 'issuer.example.com');
+
+      test('Token without an Expiry is accepted by default', () {
+        // The Expiration Time Claim is optional in a JWT (RFC 7519), so this
+        // remains the default behaviour.
+        expect(neverExpires.validate, returnsNormally);
+      });
+
+      test('Token without an Expiry is rejected when required', () {
+        expect(() => neverExpires.validate(requireExpiry: true),
+            throwsA(equals(JwtException.expiryRequired)));
+      });
+
+      test('Token with an Expiry is accepted when required', () {
+        expect(() => expires.validate(requireExpiry: true), returnsNormally);
+      });
+
+      test('An expired token is still reported as expired, not as missing', () {
+        final expired = JwtClaim(
+            issuer: 'issuer.example.com',
+            issuedAt: DateTime.utc(2019, 1, 1),
+            expiry: DateTime.utc(2019, 1, 2));
+
+        expect(() => expired.validate(requireExpiry: true),
+            throwsA(equals(JwtException.tokenExpired)));
+      });
+
+      test('A token that never expires cannot slip through verification', () {
+        // End-to-end: this is the case the fabricated-expiry behaviour hid.
+        final token = issueJwtHS256(neverExpires, secret);
+        final decoded = verifyJwtHS256Signature(token, secret);
+
+        expect(decoded.expiry, isNull);
+        expect(() => decoded.validate(requireExpiry: true),
+            throwsA(equals(JwtException.expiryRequired)));
+
+        // Even a decade later, without requireExpiry it is still accepted.
+        expect(() => decoded.validate(currentTime: DateTime.utc(2035)),
+            returnsNormally);
       });
     });
   });

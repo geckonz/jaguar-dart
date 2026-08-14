@@ -34,6 +34,10 @@ class JwtException implements Exception {
   static const JwtException tokenNotYetAccepted =
       const JwtException('JWT token not yet accepted!');
 
+  /// Expiration Time Claim required, but the token does not have one
+  static const JwtException expiryRequired =
+      const JwtException('JWT token does not expire!');
+
   /// Token Issued At time not yet reached exception
   static const JwtException tokenNotYetIssued =
       const JwtException('JWT token not yet issued!');
