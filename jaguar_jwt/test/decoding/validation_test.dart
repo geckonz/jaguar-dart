@@ -63,14 +63,39 @@ void main() {
       test('Audience not found', () {
         final missingAudience = 'missing-audience.example.com';
 
-        expect(() => claimSetAudience0.validate(audience: missingAudience),
-            returnsNormally);
-
         expect(() => claimSetAudience1.validate(audience: missingAudience),
             throwsA(equals(JwtException.audienceNotAllowed)));
 
         expect(() => claimSetAudienceN.validate(audience: missingAudience),
             throwsA(equals(JwtException.audienceNotAllowed)));
+      });
+
+      test('Audience Claim absent: rejected when an audience is expected', () {
+        // A token with no Audience Claim was not issued for any particular
+        // audience, so it must not satisfy a caller that requires one.
+        expect(() => claimSetAudience0.validate(audience: audience1),
+            throwsA(equals(JwtException.audienceNotAllowed)));
+      });
+
+      test('Audience is checked after being decoded from a token', () {
+        // End-to-end: the audience check must also reject a token that really
+        // travelled through issue/verify without an Audience Claim.
+        const secret = 's3cr3t';
+
+        final withoutAud = verifyJwtHS256Signature(
+            issueJwtHS256(JwtClaim(issuer: 'issuer.example.com'), secret),
+            secret);
+        expect(() => withoutAud.validate(audience: audience1),
+            throwsA(equals(JwtException.audienceNotAllowed)));
+
+        final withAud = verifyJwtHS256Signature(
+            issueJwtHS256(
+                JwtClaim(
+                    issuer: 'issuer.example.com',
+                    audience: <String>[audience1]),
+                secret),
+            secret);
+        expect(() => withAud.validate(audience: audience1), returnsNormally);
       });
     });
 

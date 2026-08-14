@@ -354,6 +354,14 @@ class JwtClaim {
   /// Checks the for the [issuer] and [audience] and validates the Expiration
   /// Time Claim and Not Before claim, if they are present.
   ///
+  /// If an [issuer] is provided, the token's _Issuer Claim_ must be present and
+  /// exactly match it, otherwise [JwtException.incorrectIssuer] is thrown.
+  ///
+  /// If an [audience] is provided, the token's _Audience Claim_ must be present
+  /// and contain it, otherwise [JwtException.audienceNotAllowed] is thrown.
+  /// Note: a token without an _Audience Claim_ is rejected, since it was not
+  /// issued for the caller's audience.
+  ///
   /// The time claims in the token (i.e. Expiry, Not Before and Issued At) are
   /// checked with the current time.
   /// A value for [currentTime] can be provided (this is useful for validating
@@ -386,8 +394,12 @@ class JwtClaim {
     // No checks for subject: the application is supposed to do that
 
     // Check Audience Claim
+    //
+    // A token that has no Audience Claim is rejected: if the caller asked for
+    // an audience, it requires the token to have been issued for it, and a
+    // token with no audience was not issued for anyone in particular.
     if (audience != null) {
-      if (this.audience != null && !this.audience!.contains(audience)) {
+      if (this.audience == null || !this.audience!.contains(audience)) {
         throw JwtException.audienceNotAllowed;
       }
     }
