@@ -94,6 +94,12 @@ The central model, immutable, and the source of most of the subtlety:
   on exact encoded token strings, so breaking key ordering breaks them.
 - **Signature comparison** goes through `secureCompareIntList` (constant-time). Do not
   replace it with `==` or `ListEquality`.
+- **Header extensions**: `verifyJwtHS256Signature` rejects any header carrying `crit`
+  (RFC 7515 §4.1.11) or `b64: false` (RFC 7797) *before* calling `headerCheck`, and the
+  callback cannot override it. That placement is deliberate: honouring such an extension
+  means processing the token differently, which a header-inspection callback cannot do, so
+  letting one accept `crit` would be a false claim of support. Unrecognised header
+  parameters that are *not* marked critical are ignored, as the RFC allows.
 - **Errors**: all token/validation failures throw one of the `const JwtException`
   singletons in `exception.dart`. Tests match on identity (`throwsA(equals(JwtException.tokenExpired))`),
   so reuse the existing constants rather than constructing new instances.

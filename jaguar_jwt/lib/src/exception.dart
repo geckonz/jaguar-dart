@@ -38,6 +38,13 @@ class JwtException implements Exception {
   static const JwtException expiryRequired =
       const JwtException('JWT token does not expire!');
 
+  /// Header requires an extension that changes how the JWS is processed
+  ///
+  /// Thrown when the JOSE header has a 'crit' Header Parameter, or requests
+  /// unencoded payloads with 'b64'. Neither is supported.
+  static const JwtException unsupportedHeaderExtension =
+      const JwtException('JWT header uses an unsupported extension!');
+
   /// Token Issued At time not yet reached exception
   static const JwtException tokenNotYetIssued =
       const JwtException('JWT token not yet issued!');
