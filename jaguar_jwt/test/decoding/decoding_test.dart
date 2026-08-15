@@ -314,7 +314,7 @@ void main() {
       // Time claims arrive as a NumericDate: seconds since the epoch, as an
       // integer or a double (RFC 7519 section 2).
 
-      JwtClaim decodeExp(dynamic exp) =>
+      JwtClaim decodeExp(Object? exp) =>
           JwtClaim.fromMap(<dynamic, dynamic>{'iss': 'joe', 'exp': exp},
               defaultIatExp: false);
 

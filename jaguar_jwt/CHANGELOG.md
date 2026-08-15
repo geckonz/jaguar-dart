@@ -61,7 +61,30 @@ that were previously accepted may now be rejected:
   It previously threw a `TypeError` in that case, by casting null to a
   non-nullable Map. (#5)
 
++ The minimum SDK is now Dart 3.0.0. The package already required a Dart 3
+  toolchain in practice; the declared bound of `>=2.12.0 <3.0.0` was stale. (#9)
+
 Other changes:
+
++ Removed the `auth_header` dependency, which nothing imported. `crypto` is now
+  the only runtime dependency. (#8)
++ Restored a strictness setting the package had silently lost. It configured
+  `analyzer: strong-mode: implicit-casts: false`, which Dart 3 ignores without
+  reporting anything, so implicit downcasts from `dynamic` had been permitted
+  for some time. Replaced with `language: strict-casts: true`; the code needed
+  no changes to satisfy it. (#9)
++ The analyzer now reports nothing, down from 21 findings, mostly `dynamic?`
+  written during the 3.0.0 null-safety migration (`dynamic` is already
+  nullable). Parameters that accept anything are now `Object?` rather than
+  `dynamic`, so a type check is required before use. (#9)
++ `JOSEHeaderCheck` is declared with the modern function-type syntax. (#9)
++ Replaced the dead Travis CI configuration with a GitHub Actions workflow
+  running formatting, analysis, tests and the example on stable and beta. Its
+  analysis step treats infos as failures. Deleted `tool/travis.sh` and
+  `tool/ensure_dartfmt.sh`, which invoked the long-removed `pub run` and
+  `dartfmt` commands and referenced a test file that does not exist, along with
+  `analysis_options.yaml.complete`, an aspirational rule set naming lints that
+  no longer exist. (#9)
 
 + `JwtClaim.toString` now escapes quotes and backslashes in Claim Names and
   Claim Values, which it had only appeared to do: the escaping used cascades,

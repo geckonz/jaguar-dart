@@ -340,7 +340,7 @@ void main() {
 
         final source = JwtClaim(
             issuer: 'issuer.example.com',
-            otherClaims: <String, dynamic?>{
+            otherClaims: <String, dynamic>{
               'nullValue': null,
               'boolValue0': false,
               'boolValue1': true,

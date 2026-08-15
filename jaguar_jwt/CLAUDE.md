@@ -11,8 +11,8 @@ maintained; the sibling packages still pin `sdk: ">=2.0.0-dev.65 <3.0.0"` and de
 the pre-null-safety `jaguar_jwt ^2.1.5`. Work inside `jaguar_jwt/` unless told otherwise,
 and remember that `git` commands operate on the whole multi-package tree.
 
-`jaguar_jwt` is a pure-Dart library (no Flutter, no `dart:io`) published to pub.dev. Its
-only runtime dependencies are `crypto` and `auth_header`.
+`jaguar_jwt` is a pure-Dart library (no Flutter, no `dart:io`) published to pub.dev.
+`crypto` is its only runtime dependency.
 
 ## Commands
 
@@ -23,14 +23,14 @@ dart pub get                                   # install dependencies
 dart test                                      # run all tests
 dart test test/decoding/validation_test.dart   # run a single test file
 dart test -n 'Audience'                        # run tests whose name matches
-dart analyze                                   # static analysis (uses analysis_options.yaml)
+dart analyze --fatal-infos                     # static analysis, as CI runs it
 dart format .                                  # format
 dart run example/example.dart                  # end-to-end issue + verify demo
 ```
 
-`tool/travis.sh` and `.travis.yml` are stale: the script invokes the removed `pub run`
-and `dartfmt` commands and references a `test/test_all.dart` that does not exist. Do not
-use them; run `dart test` / `dart format` directly.
+CI runs exactly these (`.github/workflows/jaguar_jwt.yml`, at the repository root rather
+than in this directory) on stable and beta, and treats analyzer infos as failures. Run
+them locally before pushing and CI will not surprise you.
 
 ## Architecture
 
@@ -125,23 +125,25 @@ exported, and its `rsa_pkcs` dependency is absent from `pubspec.yaml`. Despite t
 
 ## Conventions
 
-- `analysis_options.yaml` is the active config; `analysis_options.yaml.complete` is an
-  aspirational, much stricter rule set kept for reference — do not wire it up casually.
-  Enforced rules that matter in practice: `public_member_api_docs` (every public member
-  needs a doc comment), `prefer_single_quotes`, `sort_constructors_first`, and
-  `type_annotate_public_apis`.
-- `dart analyze` currently reports ~17 pre-existing warnings, nearly all
-  `unnecessary_question_mark` from the 3.0.0 null-safety migration writing `dynamic?`.
-  These are harmless; a clean run is not the baseline. Avoid adding new `dynamic?`, and
-  do not add new findings of your own — the count should only go down.
-- `dart format` is clean across the package. Format the files you touch, and only those,
-  so diffs stay reviewable.
+- **`dart analyze` is clean, and CI runs it with `--fatal-infos`.** That is the baseline
+  now: any finding you introduce is a build failure, and there is no backlog to hide in.
+- `analysis_options.yaml` sets `language: strict-casts: true`, which forbids implicit
+  downcasts from `dynamic`. This matters more here than in most packages, because decoded
+  JSON arrives as `dynamic` and an unchecked cast is how a malformed token turns into a
+  wrong value rather than a rejection. Prefer `Object?` with an explicit `is` check over
+  `dynamic` for anything coming out of a token. (Do not restore
+  `analyzer: strong-mode: implicit-casts:` — Dart 3 ignores it *silently*, which is how
+  the package went years believing it was strict when it was not.)
+  Lint rules worth knowing: `public_member_api_docs` (every public member needs a doc
+  comment), `prefer_single_quotes`, `sort_constructors_first`, `type_annotate_public_apis`,
+  and `avoid_annotating_with_dynamic`.
+- `dart format` is clean across the package and CI enforces it.
 - Tests are grouped by concern under `test/` (`encode/`, `decoding/`, `prettify/`,
   `secure_compare/`) and lean on the RFC 7515 Appendix A.1 example token as a known-good
   fixture. `decoding_test.dart` has a `signWithHeader` helper for tokens needing a JOSE
   header that `issueJwtHS256` will not produce.
-- `pubspec.yaml` still declares `sdk: ">=2.12.0 <3.0.0"`; the package nonetheless resolves
-  and passes tests on the Dart 3 SDK.
+- `example/example.dart` is run by CI, so it has to keep working: it is documentation that
+  compiles.
 
 ## Working on this fork
 

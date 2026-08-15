@@ -284,7 +284,7 @@ class JwtClaim {
   /// This is a Map where the key is the Claim Name and the value is the claim's
   /// value. The value can be anything that can be converted into JSON.
   /// For example, a scalar value (e.g. null, int or String), a List or Map.
-  final _otherClaims = <String, dynamic?>{};
+  final _otherClaims = <String, dynamic>{};
 
   /// Indicates if a claim exists or not.
   ///
@@ -327,7 +327,7 @@ class JwtClaim {
   /// Returns null if the claim is not present or the Claim Value is the
   /// null value. Use the [containsKey] method to distinguish between
   /// the absence of a claim and the presence of a claim whose value is null.
-  dynamic? operator [](String claimName) {
+  dynamic operator [](String claimName) {
     if (!registeredClaimNames.contains(claimName)) {
       // Non-registered claim
       return _otherClaims[claimName];
@@ -510,8 +510,8 @@ class JwtClaim {
   }
 
   /// Converts the claim set into a Map suitable for encoding as JSON.
-  Map<String, dynamic?> toJson() {
-    final body = SplayTreeMap<String, dynamic?>();
+  Map<String, dynamic> toJson() {
+    final body = SplayTreeMap<String, dynamic>();
 
     // Registered claims
     if (issuer != null) {

@@ -1,3 +1,5 @@
+[![jaguar_jwt](https://github.com/geckonz/jaguar-dart/actions/workflows/jaguar_jwt.yml/badge.svg)](https://github.com/geckonz/jaguar-dart/actions/workflows/jaguar_jwt.yml)
+
 # jaguar_jwt
 
 JWT utilities for Dart.
