@@ -31,8 +31,9 @@ void main() {
       final issuer = 'joe';
       final exp = DateTime.utc(2011, 03, 22, 18, 43); // 1300819380
 
-      // Note: this secret is not a UTF-8 string
-      final hmacKey = String.fromCharCodes(B64urlEncRfc7515.decode(k));
+      // Note: this secret is binary key material, not text. It has to be
+      // supplied as bytes: a String cannot carry these bytes through UTF-8.
+      final hmacKey = B64urlEncRfc7515.decode(k);
 
       // Create JWT
 
@@ -41,7 +42,7 @@ void main() {
           expiry: exp,
           otherClaims: <String, dynamic>{'http://example.com/is_root': true},
           defaultIatExp: false);
-      final token = issueJwtHS256(claimSet, hmacKey);
+      final token = issueJwtHS256Bytes(claimSet, hmacKey);
 
       // This simple check won't work, since the encoded header and payloads are
       // different strings, even though they both contain the same JSON object.
@@ -155,6 +156,86 @@ void main() {
         // Note: issuedAt is in UTC, but currentTime is in localtime
         expect(cs.issuedAt!.isAtSameMomentAs(currentTime), isTrue);
         expect(cs.expiry!.isAtSameMomentAs(currentTime.add(lifespan)), isTrue);
+      });
+    });
+
+    //================================================================
+
+    group('HMAC key encoding', () {
+      // The signing key is derived from a String using UTF-8, matching what
+      // other JWT implementations do with a textual shared secret. Deriving it
+      // from String.codeUnits instead would diverge for any non-ASCII
+      // character, and would silently truncate code units above 255 to their
+      // low byte -- discarding key material and colliding distinct secrets.
+
+      final claimSet = JwtClaim(issuer: 'joe', defaultIatExp: false);
+
+      /// Signs [claimSet] the way the crypto package would with these key bytes.
+      String signedWithBytes(List<int> keyBytes) =>
+          issueJwtHS256Bytes(claimSet, keyBytes);
+
+      test('An ASCII key is unaffected', () {
+        // Below U+0080 the two encodings agree, so tokens issued with an
+        // ordinary secret are unchanged.
+        const asciiKey = 's3cr3t';
+
+        expect(issueJwtHS256(claimSet, asciiKey),
+            equals(signedWithBytes(asciiKey.codeUnits)));
+      });
+
+      test('A non-ASCII key uses its UTF-8 bytes', () {
+        // 'ä' is U+00E4: one code unit (228), but two UTF-8 bytes (195, 164).
+        const key = 'pässwort';
+
+        expect(issueJwtHS256(claimSet, key),
+            equals(signedWithBytes(utf8.encode(key))));
+        expect(issueJwtHS256(claimSet, key),
+            isNot(equals(signedWithBytes(key.codeUnits))));
+      });
+
+      test('Key material above U+00FF is not truncated away', () {
+        // '€' is U+20AC: a code unit of 8364, which Hmac would mask to 0xAC.
+        const key = '€';
+
+        expect(utf8.encode(key), equals(<int>[226, 130, 172]));
+        expect(issueJwtHS256(claimSet, key),
+            equals(signedWithBytes(<int>[226, 130, 172])));
+      });
+
+      test('Secrets sharing a low byte are no longer equivalent', () {
+        // U+20AC and U+00AC both end in 0xAC. Under the old encoding they
+        // produced the same key, so a token signed with one verified with the
+        // other.
+        final euro = issueJwtHS256(claimSet, '€');
+        final notSign = issueJwtHS256(claimSet, '¬');
+
+        expect(euro, isNot(equals(notSign)));
+
+        expect(() => verifyJwtHS256Signature(euro, '¬'),
+            throwsA(equals(JwtException.hashMismatch)));
+      });
+
+      test('A key of raw bytes round-trips through the bytes API', () {
+        // Bytes that are not valid UTF-8 cannot survive a String, which is why
+        // the bytes API exists.
+        final keyBytes = <int>[0x00, 0x80, 0xC3, 0xFF, 0xFE, 0x7F];
+
+        final token = issueJwtHS256Bytes(claimSet, keyBytes);
+
+        expect(verifyJwtHS256SignatureBytes(token, keyBytes).issuer,
+            equals('joe'));
+      });
+
+      test('String and bytes APIs agree for a textual key', () {
+        const key = 'pässwort';
+
+        final fromString = issueJwtHS256(claimSet, key);
+
+        expect(
+            verifyJwtHS256SignatureBytes(fromString, utf8.encode(key)).issuer,
+            equals('joe'));
+        expect(
+            issueJwtHS256Bytes(claimSet, utf8.encode(key)), equals(fromString));
       });
     });
 

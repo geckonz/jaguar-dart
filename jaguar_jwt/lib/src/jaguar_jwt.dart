@@ -20,6 +20,11 @@ import 'exception.dart';
 /// Creates a JWT using the [claimSet] for the payload and signing it using
 /// the [hmacKey] with the HMAC SHA-256 algorithm.
 ///
+/// The [hmacKey] is converted to key bytes using UTF-8, which is what other
+/// JWT implementations do with a shared secret expressed as text. A key that
+/// is a sequence of bytes rather than text should be passed to
+/// [issueJwtHS256Bytes] instead of being squeezed through a String.
+///
 /// Throws a [JsonUnsupportedObjectError] if any of the Claim Values are not
 /// suitable for a JWT.
 ///
@@ -30,8 +35,19 @@ import 'exception.dart';
 ///       payload: {'k': 'v'});
 ///       String token = issueJwtHS256(claimSet, key);
 ///       print(token);
-String issueJwtHS256(JwtClaim claimSet, String hmacKey) {
-  final hmac = Hmac(sha256, hmacKey.codeUnits);
+String issueJwtHS256(JwtClaim claimSet, String hmacKey) =>
+    issueJwtHS256Bytes(claimSet, utf8.encode(hmacKey));
+
+/// Issues a HMAC SHA-256 signed JWT, using a key of raw bytes.
+///
+/// Identical to [issueJwtHS256], except the signing key is provided as bytes.
+/// Use this when the shared secret is binary key material (for example, one
+/// that was decoded from Base64 or hex) rather than text.
+///
+/// Throws a [JsonUnsupportedObjectError] if any of the Claim Values are not
+/// suitable for a JWT.
+String issueJwtHS256Bytes(JwtClaim claimSet, List<int> hmacKey) {
+  final hmac = Hmac(sha256, hmacKey);
 
   // Use SplayTreeMap to ensure ordering in JSON: i.e. alg before typ.
   // Ordering is not required for JWT: it is deterministic and neater.
@@ -42,8 +58,10 @@ String issueJwtHS256(JwtClaim claimSet, String hmacKey) {
   final String encPld =
       B64urlEncRfc7515.encodeUtf8(json.encode(claimSet.toJson()));
   final String data = '${encHdr}.${encPld}';
+  // The signing input is Base64url Encoding and a period, so it is all ASCII:
+  // encoding it as UTF-8 reproduces those characters exactly.
   final String encSig =
-      B64urlEncRfc7515.encode(hmac.convert(data.codeUnits).bytes);
+      B64urlEncRfc7515.encode(hmac.convert(utf8.encode(data)).bytes);
   return data + '.' + encSig;
 }
 
@@ -80,6 +98,11 @@ bool defaultJWTHeaderCheck(Map<String, dynamic?> h) {
 /// The signature is verified using the [hmacKey] with the HMAC SHA-256
 /// algorithm.
 ///
+/// The [hmacKey] is converted to key bytes using UTF-8, which is what other
+/// JWT implementations do with a shared secret expressed as text. A key that
+/// is a sequence of bytes rather than text should be passed to
+/// [verifyJwtHS256SignatureBytes] instead of being squeezed through a String.
+///
 /// The [headerCheck] is an optional function to check the header.
 /// It defaults to [defaultJWTHeaderCheck].
 ///
@@ -110,11 +133,27 @@ bool defaultJWTHeaderCheck(Map<String, dynamic?> h) {
 ///     final decClaimSet = verifyJwtHS256Signature(token, key);
 ///     print(decClaimSet);
 JwtClaim verifyJwtHS256Signature(String token, String hmacKey,
+        {JOSEHeaderCheck? headerCheck = defaultJWTHeaderCheck,
+        bool defaultIatExp = false,
+        Duration maxAge = JwtClaim.defaultMaxAge}) =>
+    verifyJwtHS256SignatureBytes(token, utf8.encode(hmacKey),
+        headerCheck: headerCheck, defaultIatExp: defaultIatExp, maxAge: maxAge);
+
+/// Verifies the signature and extracts the claim set from a JWT, using a key
+/// of raw bytes.
+///
+/// Identical to [verifyJwtHS256Signature], except the verification key is
+/// provided as bytes. Use this when the shared secret is binary key material
+/// (for example, one that was decoded from Base64 or hex) rather than text.
+///
+/// Throws a [JwtException] if the signature does not verify or the
+/// JWT is invalid.
+JwtClaim verifyJwtHS256SignatureBytes(String token, List<int> hmacKey,
     {JOSEHeaderCheck? headerCheck = defaultJWTHeaderCheck,
     bool defaultIatExp = false,
     Duration maxAge = JwtClaim.defaultMaxAge}) {
   try {
-    final hmac = Hmac(sha256, hmacKey.codeUnits);
+    final hmac = Hmac(sha256, hmacKey);
 
     final parts = token.split('.');
     if (parts.length != 3) {
@@ -163,7 +202,8 @@ JwtClaim verifyJwtHS256Signature(String token, String hmacKey,
 
     // Verify signature: calculate signature and compare to token's signature
     final data = '${parts[0]}.${parts[1]}';
-    final calcSig = hmac.convert(data.codeUnits).bytes;
+    // As when signing: the signing input is all ASCII, so UTF-8 reproduces it.
+    final calcSig = hmac.convert(utf8.encode(data)).bytes;
     final tokenSig = B64urlEncRfc7515.decode(parts[2]);
     // Signature does not match calculated
     if (!secureCompareIntList(calcSig, tokenSig))

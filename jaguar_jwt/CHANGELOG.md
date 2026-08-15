@@ -5,6 +5,24 @@
 **Breaking changes** — these tighten verification and validation, so tokens
 that were previously accepted may now be rejected:
 
++ The HMAC key is now derived from a String using UTF-8, rather than from
+  `String.codeUnits`. Tokens issued with a secret containing **any non-ASCII
+  character** will therefore have a different signature to those issued by
+  earlier versions, and will no longer verify against them. In exchange they
+  now interoperate with other JWT implementations, which all treat a textual
+  secret as UTF-8. An ASCII secret is unaffected: the two encodings agree
+  below U+0080. (#4)
+
+  This also fixes silent loss of key material. `Hmac` masks each element of
+  the key to a byte, so a code unit above 255 previously contributed only its
+  low byte: the secrets `'€'` (U+20AC) and `'¬'` (U+00AC) produced an
+  identical key, and a token signed with one verified with the other.
+
++ New `issueJwtHS256Bytes` and `verifyJwtHS256SignatureBytes` accept the key as
+  `List<int>`. Use these when the shared secret is binary key material rather
+  than text — such a key cannot be carried through a String, since not every
+  byte sequence is valid UTF-8.
+
 + `verifyJwtHS256Signature` now rejects a token whose JOSE header has a 'crit'
   Header Parameter, with the new `JwtException.unsupportedHeaderExtension`.
   Section 4.1.11 of RFC 7515 requires this: a recipient must not process a JWS
