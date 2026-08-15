@@ -203,6 +203,18 @@ void main() {
         expect(token, equals(expectedToken));
       });
 
+      test('Using both mechanisms at once is rejected', () {
+        // Providing the 'pld' claim twice is ambiguous. It must not silently
+        // discard either value.
+        expect(
+            () => JwtClaim(issuer: 'teja', otherClaims: <String, dynamic>{
+                  'pld': {'from': 'otherClaims'}
+                }, payload: <String, dynamic>{
+                  'from': 'payload'
+                }),
+            throwsA(isA<ArgumentError>()));
+      });
+
       test('Different value types', () {
         const strWithSpaces = '  foo bar  BAZ  '; // multiple leading+trailing
         const strWithUnicode = '美洲虎';

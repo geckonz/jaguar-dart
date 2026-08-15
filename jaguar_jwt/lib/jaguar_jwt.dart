@@ -1,7 +1,7 @@
 // Copyright (c) 2016, Ravi Teja Gudapati. All rights reserved. Use of this source code
 // is governed by a BSD-style license that can be found in the LICENSE file.
 
-/// JWT support for Jaguar.dart web server
+/// JSON Web Token (JWT) support for Dart.
 ///
 /// This library can be used to generate and process JSON Web Tokens (JWT).
 /// For more information about JSON Web Tokens, see
@@ -30,8 +30,12 @@
 /// ```
 ///
 /// To process a JWT, use `verifyJwtHS256Signature` to verify its signature
-/// and to extract a claim set from it, then verify the claim set using the
+/// and to extract a claim set from it, then validate the claim set using the
 /// `JwtClaim.validate` method before using the claims from it.
+///
+/// Both steps are necessary: `verifyJwtHS256Signature` checks only the JOSE
+/// header and the signature. It does not check who issued the token, who it was
+/// issued for, or whether it has expired -- `JwtClaim.validate` does that.
 ///
 /// ```
 /// const _expectedIssuer = 'issuer.example.com';
@@ -40,7 +44,10 @@
 /// try {
 ///   final claimSet = verifyJwtHS256Signature(token, sharedSecret);
 ///
-///   claimSet.validate(issuer: _expectedIssuer,  audience: _thisClient);
+///   claimSet.validate(
+///       issuer: _expectedIssuer,
+///       audience: _thisClient,
+///       requireExpiry: true);
 ///
 ///   final tokenIdentifier = claimSet.jwtId;
 ///   final claimSubject = claimSet.subject;

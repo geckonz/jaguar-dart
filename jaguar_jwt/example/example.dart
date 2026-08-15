@@ -69,7 +69,9 @@ void receiverProcessesJwt(String token) {
 String _randomString(int length) {
   const chars =
       '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
-  final rnd = Random(DateTime.now().millisecondsSinceEpoch);
+  // Random.secure, not Random(seed): a JWT ID seeded from the clock is
+  // predictable, and anything that relies on it being unguessable would break.
+  final rnd = Random.secure();
   final buf = StringBuffer();
 
   for (var x = 0; x < length; x++) {
