@@ -7,7 +7,9 @@ For more information about JSON Web Tokens, see
 [RFC 7519](https://tools.ietf.org/html/rfc7519).
 
 Currently, only the HMAC SHA-256 algorithm is supported to generate/process
-a JSON Web Signature (JWS).
+a JSON Web Signature (JWS). Tokens signed with any other algorithm are
+rejected, as are tokens whose header marks an extension critical (`crit`) or
+requests an unencoded payload (`b64`), since neither is supported.
 
 # Usage
 

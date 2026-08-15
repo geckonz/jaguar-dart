@@ -1,9 +1,29 @@
 library test.decoding;
 
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
 import 'package:test/test.dart';
 import 'package:jaguar_jwt/jaguar_jwt.dart';
 
 const String key = 'secret';
+
+/// Creates a correctly signed JWT from an arbitrary JOSE header.
+///
+/// [issueJwtHS256] always produces a header of exactly 'alg' and 'typ', so
+/// tests that need other Header Parameters have to assemble the token
+/// themselves. The signature is genuine, so a token this produces is rejected
+/// only because of its contents and never because it failed to verify.
+String signWithHeader(
+    Map<String, dynamic> header, Map<String, dynamic> payload, String hmacKey) {
+  final encHdr = B64urlEncRfc7515.encodeUtf8(json.encode(header));
+  final encPld = B64urlEncRfc7515.encodeUtf8(json.encode(payload));
+  final data = '$encHdr.$encPld';
+  final sig = B64urlEncRfc7515.encode(
+      Hmac(sha256, hmacKey.codeUnits).convert(data.codeUnits).bytes);
+
+  return '$data.$sig';
+}
 
 void main() {
   group('Decoding', () {
@@ -282,6 +302,92 @@ void main() {
 
         expect(claimSet.expiry, isNotNull);
         expect(claimSet.issuedAt, isNotNull);
+      });
+    });
+
+    //================================================================
+
+    group('Header extensions', () {
+      // A JWS whose header marks an extension critical must not be processed
+      // as though the extension were absent. This implementation understands
+      // no extensions, so it has to reject them all.
+
+      const secret = 's3cr3t';
+      const payload = <String, dynamic>{'iss': 'joe'};
+      const baseHeader = <String, dynamic>{'alg': 'HS256', 'typ': 'JWT'};
+
+      test('Control: the same token without extensions verifies', () {
+        // Establishes that signWithHeader produces genuinely valid tokens, so
+        // the rejections below cannot be signature failures in disguise.
+        final token = signWithHeader(baseHeader, payload, secret);
+
+        expect(verifyJwtHS256Signature(token, secret).issuer, equals('joe'));
+      });
+
+      test('Header with crit is rejected', () {
+        final token = signWithHeader(<String, dynamic>{
+          ...baseHeader,
+          'crit': <String>['exp']
+        }, payload, secret);
+
+        expect(() => verifyJwtHS256Signature(token, secret),
+            throwsA(equals(JwtException.unsupportedHeaderExtension)));
+      });
+
+      test('Header with an empty crit list is rejected', () {
+        // RFC 7515 forbids producing this, so it is malformed either way.
+        final token = signWithHeader(
+            <String, dynamic>{...baseHeader, 'crit': <String>[]},
+            payload,
+            secret);
+
+        expect(() => verifyJwtHS256Signature(token, secret),
+            throwsA(equals(JwtException.unsupportedHeaderExtension)));
+      });
+
+      test('crit cannot be waved through by a permissive headerCheck', () {
+        // Understanding an extension means processing the token differently,
+        // which a header check cannot do. So it must not be able to accept one.
+        final token = signWithHeader(<String, dynamic>{
+          ...baseHeader,
+          'crit': <String>['exp']
+        }, payload, secret);
+
+        expect(
+            () => verifyJwtHS256Signature(token, secret,
+                headerCheck: (h) => true),
+            throwsA(equals(JwtException.unsupportedHeaderExtension)));
+
+        expect(() => verifyJwtHS256Signature(token, secret, headerCheck: null),
+            throwsA(equals(JwtException.unsupportedHeaderExtension)));
+      });
+
+      test('Header requesting an unencoded payload (b64 false) is rejected',
+          () {
+        final token = signWithHeader(
+            <String, dynamic>{...baseHeader, 'b64': false}, payload, secret);
+
+        expect(() => verifyJwtHS256Signature(token, secret),
+            throwsA(equals(JwtException.unsupportedHeaderExtension)));
+      });
+
+      test('Header with b64 explicitly true is accepted', () {
+        // True is the default behaviour, so there is nothing unsupported here.
+        final token = signWithHeader(
+            <String, dynamic>{...baseHeader, 'b64': true}, payload, secret);
+
+        expect(verifyJwtHS256Signature(token, secret).issuer, equals('joe'));
+      });
+
+      test('Unrecognised but non-critical header parameters are accepted', () {
+        // RFC 7515 section 4: a parameter that is not marked critical may be
+        // ignored. Rejecting these would break interoperability.
+        final token = signWithHeader(
+            <String, dynamic>{...baseHeader, 'kid': 'key-1', 'cty': 'JWT'},
+            payload,
+            secret);
+
+        expect(verifyJwtHS256Signature(token, secret).issuer, equals('joe'));
       });
     });
 

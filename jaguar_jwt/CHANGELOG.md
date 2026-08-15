@@ -2,8 +2,16 @@
 
 ## Unreleased
 
-**Breaking changes** — all three tighten validation, so tokens that were
-previously accepted may now be rejected:
+**Breaking changes** — these tighten verification and validation, so tokens
+that were previously accepted may now be rejected:
+
++ `verifyJwtHS256Signature` now rejects a token whose JOSE header has a 'crit'
+  Header Parameter, with the new `JwtException.unsupportedHeaderExtension`.
+  Section 4.1.11 of RFC 7515 requires this: a recipient must not process a JWS
+  that marks an extension critical unless it understands that extension, and
+  this implementation understands none. A header requesting an unencoded
+  payload with 'b64' (RFC 7797) is rejected for the same reason. Both checks
+  run before `headerCheck` and cannot be disabled by it. (#3)
 
 + `JwtClaim.validate(audience: ...)` now rejects a token that has no Audience
   Claim, instead of skipping the check. Previously a token issued for no

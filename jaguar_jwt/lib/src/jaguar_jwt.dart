@@ -58,10 +58,14 @@ typedef bool JOSEHeaderCheck(Map<String, dynamic?> joseHeader);
 ///
 /// This implementation allows [verifyJwtHS256Signature] to exactly replicate
 /// its previous behaviour.
-///.
+///
 /// Note: this check is more restrictive than what RFC 7519 requires, since the
 /// value of 'JWT' is only a recommendation and it is supposed to be case
 /// insensitive. See <https://tools.ietf.org/html/rfc7519#section-5.1>
+///
+/// Note: [verifyJwtHS256Signature] rejects headers with a 'crit' or 'b64'
+/// Header Parameter before invoking any header check. A replacement for this
+/// function does not need to check for them, and cannot accept them.
 bool defaultJWTHeaderCheck(Map<String, dynamic?> h) {
   if (!h.containsKey('typ')) {
     return true;
@@ -78,6 +82,13 @@ bool defaultJWTHeaderCheck(Map<String, dynamic?> h) {
 ///
 /// The [headerCheck] is an optional function to check the header.
 /// It defaults to [defaultJWTHeaderCheck].
+///
+/// Regardless of the [headerCheck], a header with a 'crit' Header Parameter is
+/// rejected with [JwtException.unsupportedHeaderExtension], as required by
+/// section 4.1.11 of [RFC 7515](https://tools.ietf.org/html/rfc7515): this
+/// implementation understands no header extensions, and a token marking one as
+/// critical must not be processed as if the extension were absent. Requesting
+/// unencoded payloads with 'b64' (RFC 7797) is rejected for the same reason.
 ///
 /// The returned claim set contains exactly the claims that were in the token.
 /// In particular, if the token has no _Issued At Claim_ and/or no _Expiration
@@ -115,6 +126,28 @@ JwtClaim verifyJwtHS256Signature(String token, String hmacKey,
     // Check header
     final dynamic header = json.decode(headerString);
     if (header is Map) {
+      // Reject extensions that change how the JWS must be processed.
+      //
+      // This is done before the custom headerCheck, and cannot be disabled by
+      // it: understanding one of these extensions requires processing the token
+      // differently, which a header check has no way to do.
+
+      // RFC 7515 section 4.1.11 requires a recipient to reject a JWS carrying
+      // a 'crit' Header Parameter listing extensions it does not understand.
+      // This implementation understands none, so any 'crit' is rejected.
+      if (header.containsKey('crit')) {
+        throw JwtException.unsupportedHeaderExtension;
+      }
+
+      // RFC 7797 'b64': when false, the payload is not Base64url encoded and
+      // the signing input is computed differently. Conforming producers must
+      // also list it in 'crit' (rejected above), but reject it here too so a
+      // non-conforming token cannot be interpreted differently to how its
+      // issuer intended.
+      if (header.containsKey('b64') && header['b64'] != true) {
+        throw JwtException.unsupportedHeaderExtension;
+      }
+
       // Perform any custom checks on the header
       if (headerCheck != null &&
           !headerCheck(header.cast<String, dynamic?>())) {
