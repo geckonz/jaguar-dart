@@ -94,6 +94,13 @@ The central model, immutable, and the source of most of the subtlety:
   on exact encoded token strings, so breaking key ordering breaks them.
 - **Signature comparison** goes through `secureCompareIntList` (constant-time). Do not
   replace it with `==` or `ListEquality`.
+- **Key bytes**: the `List<int>` functions (`issueJwtHS256Bytes`,
+  `verifyJwtHS256SignatureBytes`) are the real implementations; the String forms are
+  thin wrappers that apply `utf8.encode`. Never derive key bytes from `String.codeUnits`
+  — that diverges from every other JWT implementation above U+007F, and `Hmac` masks
+  each element to a byte, so code units above 255 silently lose their high bits (which
+  once made `'€'` and `'¬'` the same key). A key that is not valid UTF-8 must go through
+  the bytes API; the RFC 7515 fixtures in the tests do exactly that.
 - **Header extensions**: `verifyJwtHS256Signature` rejects any header carrying `crit`
   (RFC 7515 §4.1.11) or `b64: false` (RFC 7797) *before* calling `headerCheck`, and the
   callback cannot override it. That placement is deliberate: honouring such an extension

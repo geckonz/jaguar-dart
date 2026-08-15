@@ -122,6 +122,23 @@ These defaults apply when *issuing* a token. They are not applied when verifying
 one: a default expiry is always in the future, so it would mask a token that
 never expires.
 
+### The signing key
+
+`issueJwtHS256` and `verifyJwtHS256Signature` take the shared secret as a
+String and convert it to key bytes using UTF-8, which is what other JWT
+implementations do with a textual secret.
+
+If the secret is binary key material rather than text — decoded from Base64 or
+hex, say — pass the bytes directly instead. Not every byte sequence is valid
+UTF-8, so such a key cannot survive a round trip through a String:
+
+```dart
+  final keyBytes = base64.decode(encodedKey);
+
+  final token = issueJwtHS256Bytes(claimSet, keyBytes);
+  final claimSet = verifyJwtHS256SignatureBytes(token, keyBytes);
+```
+
 ### Non-registered claims
 
 Any other claims are provided with the `otherClaims` parameter, and read back

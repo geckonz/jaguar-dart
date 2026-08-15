@@ -55,13 +55,14 @@ void main() {
       final issuer = 'joe';
       final exp = DateTime.utc(2011, 03, 22, 18, 43); // 1300819380
 
-      // Note: this secret is not a UTF-8 string
-      final hmacKey = String.fromCharCodes(B64urlEncRfc7515.decode(k));
+      // Note: this secret is binary key material, not text. It has to be
+      // supplied as bytes: a String cannot carry these bytes through UTF-8.
+      final hmacKey = B64urlEncRfc7515.decode(k);
 
       // Verify signature
 
       final claimSet =
-          verifyJwtHS256Signature(token, hmacKey, defaultIatExp: false);
+          verifyJwtHS256SignatureBytes(token, hmacKey, defaultIatExp: false);
       expect(claimSet, isNotNull);
 
       // Validate the claim set
