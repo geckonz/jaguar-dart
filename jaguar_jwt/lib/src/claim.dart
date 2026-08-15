@@ -57,19 +57,27 @@ class JwtClaim {
   /// It is a Map with the Claim Name as the key and the Claim Value as the
   /// value. The value must be something that can be converted into a JSON:
   /// either a scalar (i.e. null, bool, int, double or String), a List, or
-  /// Map<String,Object>. The otherClaims parameter cannot be used to set
-  /// registered claims, only non-registered claims.
+  /// Map<String,dynamic>. The otherClaims parameter cannot be used to set
+  /// registered claims, only non-registered claims: doing so throws an
+  /// [ArgumentError].
   ///
-  /// To include a 'pld' claim, use the [otherClaims] parameter. The use of both
-  /// mechanisms at the same time (to provide two 'pld' claims) is not permitted.
+  /// To include a 'pld' claim, use the [otherClaims] parameter. The [payload]
+  /// parameter is a legacy way to provide that same claim. Using both at the
+  /// same time (to provide two 'pld' claims) throws an [ArgumentError].
   ///
-  /// Normally, the _Issued At Claim_ and _Expiration Time Claim_ are both
-  /// assigned default values if they are not provided.
+  /// The _Issued At Claim_ and _Expiration Time Claim_ are both assigned
+  /// default values if they are not provided.
   /// If [issuedAt] is not specified, the current time is used.
-  /// If [expiry] is not specified, [maxAge] after the _Issued At Claim_ is used.
+  /// If [expiry] is not specified, [maxAge] after the _Issued At Claim_ is used
+  /// ([defaultMaxAge] if no [maxAge] is given).
   /// This default behaviour can be disabled by setting [defaultIatExp] to
-  /// false. When set to false, the _Issued At Claim_ and and _Expiration Time
+  /// false. When set to false, the _Issued At Claim_ and _Expiration Time
   /// Claim_ are only set if they are explicitly provided.
+  ///
+  /// Note: these defaults are appropriate when issuing a token. They are not
+  /// applied when verifying one, because a default expiry is always in the
+  /// future and would hide a token that never expires. See
+  /// [verifyJwtHS256Signature].
   factory JwtClaim(
       {String? issuer,
       String? subject,
@@ -131,6 +139,15 @@ class JwtClaim {
 
     // Treat the payload parameter as a way to provide a claim named 'pld'
     if (payload != null) {
+      // Providing the claim both ways is ambiguous. Reject it rather than
+      // silently discarding one of the two values.
+      if (_otherClaims.containsKey(_payloadClaimName)) {
+        throw ArgumentError.value(
+            _payloadClaimName,
+            'payload',
+            'claim already provided via otherClaims: '
+                'use one mechanism or the other');
+      }
       _otherClaims[_payloadClaimName] = payload;
     }
   }
@@ -227,7 +244,9 @@ class JwtClaim {
 
   /// Audience Claim
   ///
-  /// If this claim does not exist, the value is an empty list.
+  /// If this claim does not exist, the value is null. Note: a claim that exists
+  /// with an empty list of audiences is different from an absent claim, and
+  /// will not satisfy the `audience` check in [validate].
   ///
   /// The claim name for this claim is 'aud'.
   final List<String>? audience;
@@ -308,10 +327,6 @@ class JwtClaim {
   /// Returns null if the claim is not present or the Claim Value is the
   /// null value. Use the [containsKey] method to distinguish between
   /// the absence of a claim and the presence of a claim whose value is null.
-  ///
-  /// Note: when the claim name is 'aud', this method returns null when there is
-  /// no Audience Claim (unlike the [audience] member variable, which will be an
-  /// empty list).
   dynamic? operator [](String claimName) {
     if (!registeredClaimNames.contains(claimName)) {
       // Non-registered claim

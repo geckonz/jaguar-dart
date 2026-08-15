@@ -1,8 +1,6 @@
-[![Build Status](https://travis-ci.org/Jaguar-dart/jaguar_jwt.svg?branch=master)](https://travis-ci.org/Jaguar-dart/jaguar_jwt)
-
 # jaguar_jwt
 
-JWT utilities for Dart and Jaguar.dart
+JWT utilities for Dart.
 
 This library can be used to generate and process JSON Web Tokens (JWT).
 For more information about JSON Web Tokens, see
@@ -57,11 +55,11 @@ optional in a JWT, so a token without one never expires: pass
         audience: 'audience1.example.com',
         requireExpiry: true);
 
-    if (claimSet.jwtId != null) {
-       print(claimSet.jwtId);
+    if (decClaimSet.jwtId != null) {
+       print(decClaimSet.jwtId);
     }
-    if (claimSet.containsKey('typ')) {
-      final v = claimSet['typ'];
+    if (decClaimSet.containsKey('typ')) {
+      final v = decClaimSet['typ'];
       if (v is String) {
          print(v);
       } else {
@@ -75,11 +73,15 @@ optional in a JWT, so a token without one never expires: pass
   }
 ```
 
+The claim set returned by `verifyJwtHS256Signature` contains exactly the claims
+that were in the token. Registered claims that the token did not carry are null,
+so check before use (or use `containsKey`).
+
 # Configuration
 
-## JwtClaimSet
+## JwtClaim
 
-`JwtClaimSet` is the model to holds JWT claim set information.
+`JwtClaim` is the model that holds JWT claim set information.
 
 These are the registered claims:
 
@@ -107,4 +109,32 @@ Fills the `iat` field in the JWT.
 Unique identifier across services that identifies the token.
 Fills `jti` field in JWT.
 
-Additional claims may also be included in the JWT.
+### Default time claims
+
+When constructing a `JwtClaim`, `issuedAt` defaults to the current time and
+`expiry` defaults to `maxAge` after it (`JwtClaim.defaultMaxAge`, one day, if no
+`maxAge` is given). Pass `defaultIatExp: false` to leave both unset unless you
+provide them explicitly.
+
+These defaults apply when *issuing* a token. They are not applied when verifying
+one: a default expiry is always in the future, so it would mask a token that
+never expires.
+
+### Non-registered claims
+
+Any other claims are provided with the `otherClaims` parameter, and read back
+with `operator[]` / `containsKey` / `claimNames`:
+
+```dart
+  final claimSet = JwtClaim(
+      subject: 'kleak',
+      otherClaims: <String, dynamic>{'pld': {'k': 'v'}});
+
+  if (claimSet.containsKey('pld')) {
+    print(claimSet['pld']);
+  }
+```
+
+Claim Values must be convertible to JSON: a scalar, a List, or a
+`Map<String, dynamic>`. Passing a registered claim name in `otherClaims` throws
+an `ArgumentError` — use the dedicated parameter for it.

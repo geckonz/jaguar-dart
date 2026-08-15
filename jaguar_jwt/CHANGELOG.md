@@ -18,11 +18,22 @@ previously accepted may now be rejected:
   Set it to true to reject tokens that have no Expiration Time Claim with the
   new `JwtException.expiryRequired`.
 
++ Providing the 'pld' claim through both the `otherClaims` and the legacy
+  `payload` parameter now throws an `ArgumentError`, which is what the
+  documentation already said it did. Previously `payload` silently discarded
+  the value given in `otherClaims`.
+
 Other changes:
 
 + The defaulted Issued At and Expiration Time Claims are now derived from a
   single reading of the clock, so the interval between them is exactly
   `maxAge`.
++ Documentation corrections: the `audience` field documented an empty-list
+  default it has never had since null safety; the README referred to a
+  `JwtClaimSet` class that does not exist, showed an example using the wrong
+  variable, and carried a build badge for a decommissioned CI service.
++ The example now seeds its JWT ID from `Random.secure()` rather than from the
+  clock.
 
 ## 3.0.0
 
