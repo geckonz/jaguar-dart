@@ -66,7 +66,7 @@ String issueJwtHS256Bytes(JwtClaim claimSet, List<int> hmacKey) {
 }
 
 /// Header checking function type used by [verifyJwtHS256Signature].
-typedef bool JOSEHeaderCheck(Map<String, dynamic?> joseHeader);
+typedef JOSEHeaderCheck = bool Function(Map<String, dynamic> joseHeader);
 
 /// Default JOSE Header checker.
 ///
@@ -84,12 +84,12 @@ typedef bool JOSEHeaderCheck(Map<String, dynamic?> joseHeader);
 /// Note: [verifyJwtHS256Signature] rejects headers with a 'crit' or 'b64'
 /// Header Parameter before invoking any header check. A replacement for this
 /// function does not need to check for them, and cannot accept them.
-bool defaultJWTHeaderCheck(Map<String, dynamic?> h) {
+bool defaultJWTHeaderCheck(Map<String, dynamic> h) {
   if (!h.containsKey('typ')) {
     return true;
   }
 
-  final dynamic? typ = h['typ'];
+  final dynamic typ = h['typ'];
   return typ == 'JWT';
 }
 
@@ -188,8 +188,7 @@ JwtClaim verifyJwtHS256SignatureBytes(String token, List<int> hmacKey,
       }
 
       // Perform any custom checks on the header
-      if (headerCheck != null &&
-          !headerCheck(header.cast<String, dynamic?>())) {
+      if (headerCheck != null && !headerCheck(header.cast<String, dynamic>())) {
         throw JwtException.invalidToken;
       }
 

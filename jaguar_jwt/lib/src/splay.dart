@@ -9,7 +9,7 @@ import 'dart:collection';
 /// Ordering is not a requirement for JWT, but it makes the token deterministic
 /// which is nicer.
 SplayTreeMap<String, dynamic> _splayify(Map map) {
-  final data = SplayTreeMap<String, dynamic?>();
+  final data = SplayTreeMap<String, dynamic>();
 
   map.forEach((k, v) {
     if (k is String) {
@@ -23,7 +23,7 @@ SplayTreeMap<String, dynamic> _splayify(Map map) {
 }
 
 /// Splays
-dynamic? splay(dynamic? value) {
+dynamic splay(Object? value) {
   if (value is Iterable) {
     return value.map<dynamic>(splay).toList();
   } else if (value is Map) {

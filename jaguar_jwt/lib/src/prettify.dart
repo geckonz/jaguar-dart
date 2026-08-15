@@ -38,7 +38,7 @@ String _escape(String value) => value
     .replaceAll('\r', '\\r')
     .replaceAll('\t', '\\t');
 
-void _toStringDump(dynamic? value, StringBuffer buf, [int indent = 0]) {
+void _toStringDump(Object? value, StringBuffer buf, [int indent = 0]) {
   if (value is Iterable<dynamic>) {
     // Dump an Iterable
     buf.write('[\n');

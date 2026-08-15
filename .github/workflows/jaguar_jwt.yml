@@ -1,0 +1,55 @@
+name: jaguar_jwt
+
+# Only jaguar_jwt is built. The other packages in this repository
+# (jaguar_session_jwt, jaguar_session_mongo, example_models) still target
+# Dart 2 and do not resolve on a current SDK.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'jaguar_jwt/**'
+      - '.github/workflows/jaguar_jwt.yml'
+  pull_request:
+    paths:
+      - 'jaguar_jwt/**'
+      - '.github/workflows/jaguar_jwt.yml'
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: jaguar_jwt
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        sdk: [stable, beta]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: ${{ matrix.sdk }}
+
+      - name: Install dependencies
+        run: dart pub get
+
+      - name: Verify formatting
+        run: dart format --output=none --set-exit-if-changed .
+
+      - name: Analyze
+        # Warnings are errors: the package currently analyzes clean, and the
+        # point of running this is to keep it that way.
+        run: dart analyze --fatal-infos
+
+      - name: Run tests
+        run: dart test
+
+      - name: Run the example
+        # The example is documentation, so it has to keep working.
+        run: dart run example/example.dart

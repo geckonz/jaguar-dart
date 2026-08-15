@@ -1,0 +1,3 @@
+# Guidance for Claude Code sessions working on this package. Useful in the
+# repository, but not something consumers of the published package need.
+CLAUDE.md
