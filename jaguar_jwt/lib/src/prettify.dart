@@ -1,7 +1,6 @@
 import 'claim.dart';
 
 /// Converts a JwtClaim into a multi-line String for display.
-@override
 String prettify(JwtClaim claim) {
   final buf = StringBuffer('{\n');
 
@@ -23,6 +22,22 @@ String prettify(JwtClaim claim) {
 
 const String _toStringIndent = '  ';
 
+/// Escapes a String so it can be shown inside double quotes.
+///
+/// Claim Values come from a token, so they are not necessarily well behaved.
+/// A value containing a quote would otherwise appear to close the string, and
+/// one containing a newline would spread a claim set over lines that look like
+/// separate log entries.
+///
+/// The backslash must be escaped first, so that the backslashes introduced by
+/// the later replacements are not escaped a second time.
+String _escape(String value) => value
+    .replaceAll('\\', '\\\\')
+    .replaceAll('"', '\\"')
+    .replaceAll('\n', '\\n')
+    .replaceAll('\r', '\\r')
+    .replaceAll('\t', '\\t');
+
 void _toStringDump(dynamic? value, StringBuffer buf, [int indent = 0]) {
   if (value is Iterable<dynamic>) {
     // Dump an Iterable
@@ -39,7 +54,9 @@ void _toStringDump(dynamic? value, StringBuffer buf, [int indent = 0]) {
     if (hadPrev) {
       buf.write('\n');
     }
-    buf..write(_toStringIndent * (indent))..write(']');
+    buf
+      ..write(_toStringIndent * (indent))
+      ..write(']');
   } else if (value is Map) {
     // Dump a Map
     buf.write('{\n');
@@ -57,11 +74,12 @@ void _toStringDump(dynamic? value, StringBuffer buf, [int indent = 0]) {
     if (hadPrev) {
       buf.write('\n');
     }
-    buf..write(_toStringIndent * (indent))..write('}');
+    buf
+      ..write(_toStringIndent * (indent))
+      ..write('}');
   } else if (value is String) {
     // Dump a String value
-    final escValue = value..replaceAll('\\', '\\\\')..replaceAll('"', '\\"');
-    buf.write('"$escValue"');
+    buf.write('"${_escape(value)}"');
   } else if (value is DateTime) {
     // Dump a DateTime value
     buf.write('<$value>');

@@ -154,7 +154,9 @@ void main() {
       expect(claimSet.containsKey('noSuchClaim'), isFalse);
       expect(claimSet['noSuchClaim'], isNull);
 
-      // expect(claimSet.payload, isEmpty); // deprecated
+      // The legacy payload getter reports the absent 'pld' claim as null,
+      // rather than throwing on a cast of null to a Map.
+      expect(claimSet.payload, isNull);
     });
 
     //----------------------------------------------------------------
@@ -303,6 +305,85 @@ void main() {
 
         expect(claimSet.expiry, isNotNull);
         expect(claimSet.issuedAt, isNotNull);
+      });
+    });
+
+    //================================================================
+
+    group('NumericDate values', () {
+      // Time claims arrive as a NumericDate: seconds since the epoch, as an
+      // integer or a double (RFC 7519 section 2).
+
+      JwtClaim decodeExp(dynamic exp) =>
+          JwtClaim.fromMap(<dynamic, dynamic>{'iss': 'joe', 'exp': exp},
+              defaultIatExp: false);
+
+      test('The epoch is accepted as an integer and as a double', () {
+        // Zero is a valid NumericDate. The two spellings are the same instant,
+        // so accepting one and rejecting the other would be arbitrary.
+        final epoch = DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+
+        expect(decodeExp(0).expiry, equals(epoch));
+        expect(decodeExp(0.0).expiry, equals(epoch));
+      });
+
+      test('A double keeps its fraction of a second', () {
+        expect(decodeExp(1.5).expiry,
+            equals(DateTime.fromMillisecondsSinceEpoch(1500, isUtc: true)));
+      });
+
+      test('Values too large for a DateTime are rejected', () {
+        // Not merely out of range: seconds are multiplied by 1000, and that
+        // product overflows a 64-bit integer and wraps around. Unchecked,
+        // 18446744073709552 decoded to 384 milliseconds after the epoch.
+        for (final tooBig in <dynamic>[
+          18446744073709552,
+          18446744073709551,
+          36893488147419103,
+          9000000000000000000,
+          1000000000000000,
+          1e30,
+        ]) {
+          expect(() => decodeExp(tooBig),
+              throwsA(equals(JwtException.invalidToken)),
+              reason: 'should have rejected $tooBig');
+        }
+      });
+
+      test('The largest representable NumericDate is still accepted', () {
+        const maxSeconds = 8640000000000000 ~/ 1000;
+
+        expect(decodeExp(maxSeconds).expiry, isNotNull);
+      });
+
+      test('Malformed values are rejected as invalid tokens', () {
+        // Every rejection must be a JwtException: callers are documented to
+        // catch that, so anything else escapes their error handling.
+        for (final bad in <dynamic>[
+          -1,
+          -1.0,
+          double.nan,
+          double.infinity,
+          double.negativeInfinity,
+          '123',
+          true,
+          <int>[1],
+        ]) {
+          expect(
+              () => decodeExp(bad), throwsA(equals(JwtException.invalidToken)),
+              reason: 'should have rejected $bad');
+        }
+      });
+
+      test('An out of range value in a real token throws JwtException', () {
+        // End to end, through the documented catch-JwtException path.
+        final token = signWithHeader(
+            <String, dynamic>{'alg': 'HS256', 'typ': 'JWT'},
+            <String, dynamic>{'iss': 'joe', 'exp': 18446744073709552},
+            secret);
+
+        expect(() => verifyJwtHS256Signature(token, secret),
+            throwsA(isA<JwtException>()));
       });
     });
 

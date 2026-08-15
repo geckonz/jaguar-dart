@@ -71,7 +71,11 @@ The central model, immutable, and the source of most of the subtlety:
   subclasses `JwtClaim`; if that changes, this is why the constructor cannot be extended.
 - All `DateTime` values are normalized to UTC on construction. Encoding to/from JWT
   NumericDate goes through `JwtDate` in `date.dart`, which accepts both int and double on
-  decode but always emits whole seconds on encode.
+  decode but always emits whole seconds on encode. `decode` range-checks *before*
+  multiplying seconds by 1000: that product overflows a 64-bit int and wraps, which used
+  to turn an absurd date into a plausible one. Every rejection there must be a
+  `JwtException` — anything else escapes the `on JwtException` handling that callers are
+  documented to write.
 - `validate()` rejects a token when the current time is *at or after* `exp` (inclusive) but
   accepts it exactly at `nbf`; it also rejects claim sets where `exp` is not after `nbf`
   or not after `iat`. `iat` itself is never checked against the clock — see the comment
@@ -80,8 +84,8 @@ The central model, immutable, and the source of most of the subtlety:
   the expected value, but a token *missing* the corresponding claim is then rejected.
   `requireExpiry` (default false) additionally rejects a token with no `exp` at all, since
   `exp` is optional in RFC 7519 and such a token never expires.
-- The `payload` getter is a legacy accessor for the non-registered `pld` claim. It throws
-  a cast error when no `pld` claim is present, so guard with `containsKey('pld')`.
+- The `payload` getter is a legacy accessor for the non-registered `pld` claim, returning
+  null when it is absent. `claimSet['pld']` reaches the same value and is preferred.
 
 ### Supporting invariants
 
@@ -126,14 +130,16 @@ exported, and its `rsa_pkcs` dependency is absent from `pubspec.yaml`. Despite t
   Enforced rules that matter in practice: `public_member_api_docs` (every public member
   needs a doc comment), `prefer_single_quotes`, `sort_constructors_first`, and
   `type_annotate_public_apis`.
-- `dart analyze` currently reports ~21 pre-existing warnings, nearly all
+- `dart analyze` currently reports ~17 pre-existing warnings, nearly all
   `unnecessary_question_mark` from the 3.0.0 null-safety migration writing `dynamic?`.
-  These are harmless; a clean run is not the baseline. Avoid adding new `dynamic?`.
-- `dart format` reports `lib/src/prettify.dart` as unformatted; that is pre-existing drift,
-  not something a given change introduced. Format only the files you touch, so diffs stay
-  reviewable.
-- Tests are grouped by concern under `test/` (`encode/`, `decoding/`, `secure_compare/`)
-  and lean on the RFC 7515 Appendix A.1 example token as a known-good fixture.
+  These are harmless; a clean run is not the baseline. Avoid adding new `dynamic?`, and
+  do not add new findings of your own — the count should only go down.
+- `dart format` is clean across the package. Format the files you touch, and only those,
+  so diffs stay reviewable.
+- Tests are grouped by concern under `test/` (`encode/`, `decoding/`, `prettify/`,
+  `secure_compare/`) and lean on the RFC 7515 Appendix A.1 example token as a known-good
+  fixture. `decoding_test.dart` has a `signWithHeader` helper for tokens needing a JOSE
+  header that `issueJwtHS256` will not produce.
 - `pubspec.yaml` still declares `sdk: ">=2.12.0 <3.0.0"`; the package nonetheless resolves
   and passes tests on the Dart 3 SDK.
 
