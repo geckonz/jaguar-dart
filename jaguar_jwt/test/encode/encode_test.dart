@@ -284,6 +284,30 @@ void main() {
         expect(token, equals(expectedToken));
       });
 
+      test('The payload getter reads the claim back', () {
+        final claimSet = JwtClaim(
+            payload: <String, dynamic>{'k': 'v'}, defaultIatExp: false);
+
+        expect(claimSet.payload, equals(<String, dynamic>{'k': 'v'}));
+        // The same claim, reached the consistent way.
+        expect(claimSet['pld'], equals(<String, dynamic>{'k': 'v'}));
+      });
+
+      test('The payload getter is null when there is no pld claim', () {
+        final claimSet = JwtClaim(issuer: 'teja', defaultIatExp: false);
+
+        expect(claimSet.payload, isNull);
+        expect(claimSet.containsKey('pld'), isFalse);
+      });
+
+      test('The payload getter rejects a pld claim that is not an object', () {
+        final claimSet = JwtClaim(
+            otherClaims: <String, dynamic>{'pld': 'not-an-object'},
+            defaultIatExp: false);
+
+        expect(() => claimSet.payload, throwsA(isA<Exception>()));
+      });
+
       test('Using both mechanisms at once is rejected', () {
         // Providing the 'pld' claim twice is ambiguous. It must not silently
         // discard either value.

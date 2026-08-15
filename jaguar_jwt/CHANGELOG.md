@@ -49,7 +49,27 @@ that were previously accepted may now be rejected:
   documentation already said it did. Previously `payload` silently discarded
   the value given in `otherClaims`.
 
++ `JwtDate.decode` now rejects a NumericDate too large to represent as a
+  `DateTime`, instead of letting a `RangeError` escape. Verification is
+  documented to throw `JwtException`, so the old behaviour escaped a caller's
+  error handling. Values large enough to overflow the seconds-to-milliseconds
+  multiplication were worse than out of range: they wrapped around and were
+  accepted as a plausible date, so an `exp` of 18446744073709552 decoded to
+  384 milliseconds after the epoch. Both require a validly signed token. (#7)
++ `JwtClaim.payload` returns `Map<String, dynamic>?` rather than
+  `Map<String, dynamic>`, and returns null when the token has no 'pld' claim.
+  It previously threw a `TypeError` in that case, by casting null to a
+  non-nullable Map. (#5)
+
 Other changes:
+
++ `JwtClaim.toString` now escapes quotes and backslashes in Claim Names and
+  Claim Values, which it had only appeared to do: the escaping used cascades,
+  which discard the result of `String.replaceAll`. Newlines, carriage returns
+  and tabs are escaped as well, so a Claim Value can no longer make part of a
+  logged claim set look like a separate entry. (#6)
++ `JwtDate.decode` accepts a NumericDate of `0.0`, having already accepted an
+  integer `0`. (#7)
 
 + The defaulted Issued At and Expiration Time Claims are now derived from a
   single reading of the clock, so the interval between them is exactly

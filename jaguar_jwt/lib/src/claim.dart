@@ -380,11 +380,21 @@ class JwtClaim {
   }
 
   /// The payload (pld) claim.
-  Map<String, dynamic?> get payload {
+  ///
+  /// Returns null if the token has no 'pld' claim. Since 'pld' is an ordinary
+  /// non-registered claim, `claimSet['pld']` reaches the same value and is the
+  /// more consistent way to read it; this getter exists for the legacy
+  /// [JwtClaim] `payload` parameter.
+  ///
+  /// Throws an [Exception] if the claim is present but is not a JSON object.
+  Map<String, dynamic>? get payload {
     final pld = _otherClaims[_payloadClaimName];
 
-    if (pld is Map<String, dynamic?> || pld == null) {
-      return pld as Map<String, dynamic?>;
+    if (pld == null) {
+      return null;
+    }
+    if (pld is Map<String, dynamic>) {
+      return pld;
     }
 
     throw Exception('Invalid payload type found in the JWT token!');
