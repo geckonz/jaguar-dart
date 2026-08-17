@@ -1,6 +1,6 @@
 name: jaguar_jwt
 description: Provides JWT utilities for Dart including issuing a token, verifing a token and parsing a token.
-version: 3.0.0
+version: 4.0.0
 homepage: https://github.com/geckonz/jaguar-dart
 repository: https://github.com/geckonz/jaguar-dart
 

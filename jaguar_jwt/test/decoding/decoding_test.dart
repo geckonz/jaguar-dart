@@ -475,6 +475,95 @@ void main() {
 
     //================================================================
 
+    group('Algorithm pinning', () {
+      // The algorithm is fixed by the verifying function, and 'alg' is only an
+      // assertion checked against it. Every token here is *correctly signed*
+      // with HS256 and only lies in its header, so a rejection proves the
+      // header was checked and is not a signature failure in disguise.
+
+      const secret = 's3cr3t';
+      const payload = <String, dynamic>{'iss': 'joe'};
+
+      test('Control: a header claiming HS256 verifies', () {
+        final token = signWithHeader(
+            <String, dynamic>{'alg': 'HS256', 'typ': 'JWT'}, payload, secret);
+
+        expect(verifyJwtHS256Signature(token, secret).issuer, equals('joe'));
+      });
+
+      test('A header naming another algorithm is rejected', () {
+        // Including the case that matters most: a token whose header says
+        // RS256 must not be verified as HS256 just because it is signed that
+        // way. Selecting the algorithm from the header is what turns an RSA
+        // public key into an accepted HMAC secret.
+        for (final alg in <String>['none', 'NONE', 'RS256', 'HS384', 'hs256']) {
+          final token = signWithHeader(
+              <String, dynamic>{'alg': alg, 'typ': 'JWT'}, payload, secret);
+
+          expect(() => verifyJwtHS256Signature(token, secret),
+              throwsA(equals(JwtException.algorithmMismatch)),
+              reason: 'should have rejected alg=$alg');
+        }
+      });
+
+      test('A header with no algorithm is rejected', () {
+        final token =
+            signWithHeader(<String, dynamic>{'typ': 'JWT'}, payload, secret);
+
+        expect(() => verifyJwtHS256Signature(token, secret),
+            throwsA(equals(JwtException.algorithmMismatch)));
+      });
+
+      test('A non-string algorithm is rejected', () {
+        // 'alg' is a String in RFC 7515: anything else cannot equal 'HS256',
+        // but check it explicitly, since a JSON value of another type is
+        // exactly the sort of input that finds an unguarded comparison.
+        for (final Object? alg in <Object?>[
+          null,
+          256,
+          true,
+          <String>['HS256'],
+          <String, dynamic>{'alg': 'HS256'},
+        ]) {
+          final token = signWithHeader(
+              <String, dynamic>{'alg': alg, 'typ': 'JWT'}, payload, secret);
+
+          expect(() => verifyJwtHS256Signature(token, secret),
+              throwsA(equals(JwtException.algorithmMismatch)),
+              reason: 'should have rejected alg=$alg');
+        }
+      });
+
+      test('A permissive headerCheck cannot accept another algorithm', () {
+        // The pinning runs before the callback, so no header check -- however
+        // badly written, and including none at all -- can reach past it.
+        final token = signWithHeader(
+            <String, dynamic>{'alg': 'none', 'typ': 'JWT'}, payload, secret);
+
+        expect(
+            () => verifyJwtHS256Signature(token, secret,
+                headerCheck: (h) => true),
+            throwsA(equals(JwtException.algorithmMismatch)));
+
+        expect(() => verifyJwtHS256Signature(token, secret, headerCheck: null),
+            throwsA(equals(JwtException.algorithmMismatch)));
+      });
+
+      test('The algorithm is checked before the signature', () {
+        // A wrong algorithm is reported as such even when the signature is
+        // also wrong, so an operator investigating one of these is not sent
+        // looking at key rotation when the real event is a token forgery
+        // attempt.
+        final token = signWithHeader(
+            <String, dynamic>{'alg': 'none', 'typ': 'JWT'}, payload, 'wrong');
+
+        expect(() => verifyJwtHS256Signature(token, secret),
+            throwsA(equals(JwtException.algorithmMismatch)));
+      });
+    });
+
+    //================================================================
+
     group('Signature', () {
       final claimSet = JwtClaim(
           subject: 'kleak',
@@ -524,8 +613,9 @@ void main() {
 
         <String, JwtException?>{
           // Different alg
-          '{"typ":"JWT"}': JwtException.hashMismatch, // algorithm missing
-          '{"alg":"none","typ":"JWT"}': JwtException.hashMismatch, // not HS256
+          '{"typ":"JWT"}': JwtException.algorithmMismatch, // algorithm missing
+          '{"alg":"none","typ":"JWT"}':
+              JwtException.algorithmMismatch, // not HS256
 
           // Different typ
           '{"alg":"HS256"}': JwtException.hashMismatch, // typ missing

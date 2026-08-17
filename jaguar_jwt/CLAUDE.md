@@ -105,6 +105,16 @@ The central model, immutable, and the source of most of the subtlety:
   each element to a byte, so code units above 255 silently lose their high bits (which
   once made `'€'` and `'¬'` the same key). A key that is not valid UTF-8 must go through
   the bytes API; the RFC 7515 fixtures in the tests do exactly that.
+- **Algorithm pinning**: the algorithm is fixed by the function the caller chose, not read
+  from the token. `verifyJwtHS256SignatureBytes` builds `Hmac(sha256, ...)` unconditionally
+  and then checks `header['alg'] != 'HS256'`, throwing `JwtException.algorithmMismatch`;
+  `alg` is an assertion checked against what the code will do, never a selector that picks
+  it. Do not add an "expected algorithm" parameter: a constant cannot be misconfigured and
+  a parameter can, and it is the parameterised form that lets an RSA public key be accepted
+  as an HMAC secret. Adding RS256 later means a *separate* `issueJwtRS256` /
+  `verifyJwtRS256Signature` pair pinning `'RS256'`, so the key type and the algorithm are
+  bound together by the signature of the function — not a unified `verify` taking both.
+  The check sits with the `crit`/`b64` checks, ahead of `headerCheck`, for the reason below.
 - **Header extensions**: `verifyJwtHS256Signature` rejects any header carrying `crit`
   (RFC 7515 §4.1.11) or `b64: false` (RFC 7797) *before* calling `headerCheck`, and the
   callback cannot override it. That placement is deliberate: honouring such an extension
@@ -119,9 +129,12 @@ The central model, immutable, and the source of most of the subtlety:
 
 ### RS256
 
-`lib/src/rsa_sha256_signer.dart` is entirely commented out (`/* TODO ... */`), is not
-exported, and its `rsa_pkcs` dependency is absent from `pubspec.yaml`. Despite the
-"RS256 support" commit in the history, only HS256 works today.
+Not implemented, deliberately. `lib/src/rsa_sha256_signer.dart` — a stub entirely inside a
+`/* TODO ... */` comment, never exported, depending on a package absent from
+`pubspec.yaml`, and setting `'alg': 'HS256'` in its own header map — was deleted in #10
+rather than finished, since nothing consuming this fork needs asymmetric signing. The
+"RS256 support" commit in the history never shipped anything. If it is wanted later, see
+the algorithm-pinning invariant above for the shape it has to take.
 
 ## Conventions
 
