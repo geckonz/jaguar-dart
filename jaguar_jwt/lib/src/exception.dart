@@ -26,6 +26,15 @@ class JwtException implements Exception {
   static const JwtException hashMismatch =
       const JwtException('JWT hash mismatch!');
 
+  /// Signing algorithm mismatch exception
+  ///
+  /// Thrown when the 'alg' Header Parameter is absent, or names an algorithm
+  /// other than the one the verifier implements. The token is never processed
+  /// with the algorithm its header names: 'alg' is an assertion to be checked,
+  /// not a selector.
+  static const JwtException algorithmMismatch =
+      const JwtException('JWT algorithm mismatch!');
+
   /// Token Expired time reached exception
   static const JwtException tokenExpired =
       const JwtException('JWT token expired!');

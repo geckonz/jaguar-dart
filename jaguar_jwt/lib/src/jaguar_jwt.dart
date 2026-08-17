@@ -81,9 +81,10 @@ typedef JOSEHeaderCheck = bool Function(Map<String, dynamic> joseHeader);
 /// value of 'JWT' is only a recommendation and it is supposed to be case
 /// insensitive. See <https://tools.ietf.org/html/rfc7519#section-5.1>
 ///
-/// Note: [verifyJwtHS256Signature] rejects headers with a 'crit' or 'b64'
-/// Header Parameter before invoking any header check. A replacement for this
-/// function does not need to check for them, and cannot accept them.
+/// Note: [verifyJwtHS256Signature] checks the 'alg' Header Parameter, and
+/// rejects headers with a 'crit' or 'b64' Header Parameter, before invoking any
+/// header check. A replacement for this function does not need to check for
+/// them, and cannot accept them.
 bool defaultJWTHeaderCheck(Map<String, dynamic> h) {
   if (!h.containsKey('typ')) {
     return true;
@@ -103,8 +104,18 @@ bool defaultJWTHeaderCheck(Map<String, dynamic> h) {
 /// is a sequence of bytes rather than text should be passed to
 /// [verifyJwtHS256SignatureBytes] instead of being squeezed through a String.
 ///
+/// The token is always verified with HMAC SHA-256, regardless of what its
+/// header says. A header whose 'alg' Header Parameter is absent, or is anything
+/// other than 'HS256', is rejected with [JwtException.algorithmMismatch]: the
+/// algorithm is pinned by the choice of this function, and 'alg' is only an
+/// assertion to be checked against it. A verifier that instead selected its
+/// algorithm from the header would let an attacker choose how their own token
+/// is checked, which is the classic way these libraries are broken.
+///
 /// The [headerCheck] is an optional function to check the header.
 /// It defaults to [defaultJWTHeaderCheck].
+///
+/// The 'alg' check runs before the [headerCheck] and cannot be disabled by it.
 ///
 /// Regardless of the [headerCheck], a header with a 'crit' Header Parameter is
 /// rejected with [JwtException.unsupportedHeaderExtension], as required by
@@ -187,13 +198,25 @@ JwtClaim verifyJwtHS256SignatureBytes(String token, List<int> hmacKey,
         throw JwtException.unsupportedHeaderExtension;
       }
 
+      // The signing algorithm is fixed by this function: the HMAC above is
+      // already built around SHA-256, whatever the token says. So 'alg' is an
+      // assertion to be checked against what this code will actually do, never
+      // an input that selects it -- selecting on 'alg' is how a verifier is
+      // talked into checking an RS256 token's signature with the public key as
+      // an HMAC secret, or into accepting 'none'.
+      //
+      // Checked here, with the other header parameters that decide whether the
+      // token can be processed at all, and before the caller's headerCheck. A
+      // header check can only reject a token, so it could never weaken this;
+      // but the pinning should not read as though a callback participates in
+      // it.
+      if (header['alg'] != 'HS256') {
+        throw JwtException.algorithmMismatch;
+      }
+
       // Perform any custom checks on the header
       if (headerCheck != null && !headerCheck(header.cast<String, dynamic>())) {
         throw JwtException.invalidToken;
-      }
-
-      if (header['alg'] != 'HS256') {
-        throw JwtException.hashMismatch;
       }
     } else {
       throw JwtException.headerNotJson;

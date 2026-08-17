@@ -1,9 +1,14 @@
 # Changelog
 
-## Unreleased
+## 4.0.0
+
+A major version: the changes below alter which tokens are accepted, and the
+signature produced by a non-ASCII textual key.
 
 **Breaking changes** — these tighten verification and validation, so tokens
-that were previously accepted may now be rejected:
+that were previously accepted may now be rejected. For what a consumer of the
+published 3.0.0 has to actually do about them, see *Migrating from jaguar_jwt
+3.0.0 on pub.dev* in `README.md`:
 
 + The HMAC key is now derived from a String using UTF-8, rather than from
   `String.codeUnits`. Tokens issued with a secret containing **any non-ASCII
@@ -61,10 +66,35 @@ that were previously accepted may now be rejected:
   It previously threw a `TypeError` in that case, by casting null to a
   non-nullable Map. (#5)
 
++ A token whose 'alg' Header Parameter is absent, or is anything other than
+  'HS256', is now rejected with the new `JwtException.algorithmMismatch`
+  instead of `JwtException.hashMismatch`. Such a token was already rejected —
+  the algorithm has always been pinned by the verifying function rather than
+  selected from the header, which is what prevents the RS256-to-HS256 key
+  confusion attack — but reporting it as a hash mismatch made a forgery attempt
+  indistinguishable from a key that needs rotating. Code matching on
+  `JwtException.hashMismatch` to detect a rejected algorithm must now match on
+  `JwtException.algorithmMismatch`. (#10)
+
+  The check also moved ahead of `headerCheck`, alongside the 'crit' and 'b64'
+  checks, so every decision about whether a token can be processed at all is
+  made in one place and none of them can appear to involve the callback. A
+  header check could only ever reject a token, so this does not change which
+  tokens are accepted; a header that fails both checks now reports the
+  algorithm rather than the header check.
+
 + The minimum SDK is now Dart 3.0.0. The package already required a Dart 3
   toolchain in practice; the declared bound of `>=2.12.0 <3.0.0` was stale. (#9)
 
 Other changes:
+
++ Deleted `lib/src/rsa_sha256_signer.dart`. Despite a commit titled "RS256
+  support", the file was entirely inside a `/* TODO */` comment, was never
+  exported, depended on a package absent from `pubspec.yaml`, and set
+  `'alg': 'HS256'` in its own header map. It advertised an algorithm the
+  package does not implement. Only HS256 is supported; if RSA signing is added
+  later it will be a separate pair of functions, so that the key type and the
+  algorithm stay bound together. (#10)
 
 + Removed the `auth_header` dependency, which nothing imported. `crypto` is now
   the only runtime dependency. (#8)
